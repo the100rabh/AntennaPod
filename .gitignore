@@ -34,6 +34,7 @@ out
 #transifex downloads
 changelog
 description
+contributers.py
 
 # other
 *.odg#
@@ -42,3 +43,4 @@ libs
 *.DS_Store
 src/de/danoeh/antennapod/util/flattr/FlattrConfig.java
 gradle.properties
+*.keystore

@@ -18,8 +18,6 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.CookieManager;
-import java.net.CookiePolicy;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -31,6 +29,9 @@ import java.util.List;
 
 import de.danoeh.antennapod.core.ClientConfig;
 import de.danoeh.antennapod.core.gpoddernet.model.GpodnetDevice;
+import de.danoeh.antennapod.core.gpoddernet.model.GpodnetEpisodeAction;
+import de.danoeh.antennapod.core.gpoddernet.model.GpodnetEpisodeActionGetResponse;
+import de.danoeh.antennapod.core.gpoddernet.model.GpodnetEpisodeActionPostResponse;
 import de.danoeh.antennapod.core.gpoddernet.model.GpodnetPodcast;
 import de.danoeh.antennapod.core.gpoddernet.model.GpodnetSubscriptionChange;
 import de.danoeh.antennapod.core.gpoddernet.model.GpodnetTag;
@@ -42,6 +43,8 @@ import de.danoeh.antennapod.core.service.download.AntennapodHttpClient;
  * Communicates with the gpodder.net service.
  */
 public class GpodnetService {
+
+    private static final String TAG = "GpodnetService";
 
     private static final String BASE_SCHEME = "https";
 
@@ -81,9 +84,10 @@ public class GpodnetService {
                     jsonTagList.length());
             for (int i = 0; i < jsonTagList.length(); i++) {
                 JSONObject jObj = jsonTagList.getJSONObject(i);
-                String name = jObj.getString("tag");
+                String title = jObj.getString("title");
+                String tag = jObj.getString("tag");
                 int usage = jObj.getInt("usage");
-                tagList.add(new GpodnetTag(name, usage));
+                tagList.add(new GpodnetTag(title, tag, usage));
             }
             return tagList;
         } catch (JSONException e) {
@@ -103,7 +107,7 @@ public class GpodnetService {
 
         try {
             URL url = new URI(BASE_SCHEME, BASE_HOST, String.format(
-                    "/api/2/tag/%s/%d.json", tag.getName(), count), null).toURL();
+                    "/api/2/tag/%s/%d.json", tag.getTag(), count), null).toURL();
             Request.Builder request = new Request.Builder().url(url);
             String response = executeRequest(request);
 
@@ -445,6 +449,85 @@ public class GpodnetService {
     }
 
     /**
+     * Updates the episode actions
+     * <p/>
+     * This method requires authentication.
+     *
+     * @param episodeActions    Collection of episode actions.
+     * @return a GpodnetUploadChangesResponse. See {@link de.danoeh.antennapod.core.gpoddernet.model.GpodnetUploadChangesResponse}
+     * for details.
+     * @throws java.lang.IllegalArgumentException                           if username, deviceId, added or removed is null.
+     * @throws de.danoeh.antennapod.core.gpoddernet.GpodnetServiceException if added or removed contain duplicates or if there
+     *                                                                      is an authentication error.
+     */
+    public GpodnetEpisodeActionPostResponse uploadEpisodeActions(Collection<GpodnetEpisodeAction> episodeActions)
+            throws GpodnetServiceException {
+
+        Validate.notNull(episodeActions);
+
+        String username = GpodnetPreferences.getUsername();
+
+        try {
+            URL url = new URI(BASE_SCHEME, BASE_HOST, String.format(
+                    "/api/2/episodes/%s.json", username), null).toURL();
+
+            final JSONArray list = new JSONArray();
+            for(GpodnetEpisodeAction episodeAction : episodeActions) {
+                JSONObject obj = episodeAction.writeToJSONObject();
+                if(obj != null) {
+                    list.put(obj);
+                }
+            }
+
+            RequestBody body = RequestBody.create(JSON, list.toString());
+            Request.Builder request = new Request.Builder().post(body).url(url);
+
+            final String response = executeRequest(request);
+            return GpodnetEpisodeActionPostResponse.fromJSONObject(response);
+        } catch (JSONException | MalformedURLException | URISyntaxException e) {
+            e.printStackTrace();
+            throw new GpodnetServiceException(e);
+        }
+
+    }
+
+    /**
+     * Returns all subscription changes of a specific device.
+     * <p/>
+     * This method requires authentication.
+     *
+     * @param timestamp A timestamp that can be used to receive all changes since a
+     *                  specific point in time.
+     * @throws IllegalArgumentException              If username or deviceId is null.
+     * @throws GpodnetServiceAuthenticationException If there is an authentication error.
+     */
+    public GpodnetEpisodeActionGetResponse getEpisodeChanges(long timestamp) throws GpodnetServiceException {
+
+        String username = GpodnetPreferences.getUsername();
+
+        String params = String.format("since=%d", timestamp);
+        String path = String.format("/api/2/episodes/%s.json",
+                username);
+        try {
+            URL url = new URI(BASE_SCHEME, null, BASE_HOST, -1, path, params,
+                    null).toURL();
+            Request.Builder request = new Request.Builder().url(url);
+
+            String response = executeRequest(request);
+            JSONObject json = new JSONObject(response);
+            return readEpisodeActionsFromJSONObject(json);
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
+            throw new IllegalStateException(e);
+        } catch (JSONException | MalformedURLException e) {
+            e.printStackTrace();
+            throw new GpodnetServiceException(e);
+        }
+
+    }
+
+
+    /**
      * Logs in a specific user. This method must be called if any of the methods
      * that require authentication is used.
      *
@@ -463,7 +546,8 @@ public class GpodnetService {
             e.printStackTrace();
             throw new GpodnetServiceException(e);
         }
-        Request.Builder request = new Request.Builder().url(url).post(null);
+        RequestBody body = RequestBody.create(TEXT, "");
+        Request.Builder request = new Request.Builder().url(url).post(body);
         executeRequestWithAuthentication(request, username, password);
     }
 
@@ -552,7 +636,12 @@ public class GpodnetService {
         Validate.notNull(body);
 
         ByteArrayOutputStream outputStream;
-        int contentLength = (int) body.contentLength();
+        int contentLength = 0;
+        try {
+            contentLength = (int) body.contentLength();
+        } catch (IOException ignore) {
+            // ignore
+        }
         if (contentLength > 0) {
             outputStream = new ByteArrayOutputStream(contentLength);
         } else {
@@ -681,4 +770,24 @@ public class GpodnetService {
         long timestamp = object.getLong("timestamp");
         return new GpodnetSubscriptionChange(added, removed, timestamp);
     }
+
+    private GpodnetEpisodeActionGetResponse readEpisodeActionsFromJSONObject(
+            JSONObject object) throws JSONException {
+        Validate.notNull(object);
+
+        List<GpodnetEpisodeAction> episodeActions = new ArrayList<GpodnetEpisodeAction>();
+
+        long timestamp = object.getLong("timestamp");
+        JSONArray jsonActions = object.getJSONArray("actions");
+        for(int i=0; i < jsonActions.length(); i++) {
+            JSONObject jsonAction = jsonActions.getJSONObject(i);
+            GpodnetEpisodeAction episodeAction = GpodnetEpisodeAction.readFromJSONObject(jsonAction);
+            if(episodeAction != null) {
+                episodeActions.add(episodeAction);
+            }
+        }
+        return new GpodnetEpisodeActionGetResponse(episodeActions, timestamp);
+    }
+
+
 }
