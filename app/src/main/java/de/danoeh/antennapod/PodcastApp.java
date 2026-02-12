@@ -1,58 +1,36 @@
 package de.danoeh.antennapod;
 
 import android.app.Application;
-import android.content.res.Configuration;
+import android.util.Log;
 
-import de.danoeh.antennapod.core.feed.EventDistributor;
-import de.danoeh.antennapod.core.preferences.PlaybackPreferences;
-import de.danoeh.antennapod.core.preferences.UserPreferences;
-import de.danoeh.antennapod.core.util.NetworkUtils;
-import de.danoeh.antennapod.spa.SPAUtil;
+import com.google.android.material.color.DynamicColors;
+
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.EventBusException;
 
 /** Main application class. */
 public class PodcastApp extends Application {
+    private static final String TAG = "PodcastApp";
 
-    // make sure that ClientConfigurator executes its static code
-    static {
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        Thread.setDefaultUncaughtExceptionHandler(new CrashReportExceptionHandler());
+        RxJavaErrorHandlerSetup.setupRxJavaErrorHandler();
+
         try {
-            Class.forName("de.danoeh.antennapod.config.ClientConfigurator");
-        } catch (Exception e) {
-            throw new RuntimeException("ClientConfigurator not found");
+            // Robolectric calls onCreate for every test, which causes problems with static members
+            EventBus.builder()
+                    .addIndex(new ApEventBusIndex())
+                    .logNoSubscriberMessages(false)
+                    .sendNoSubscriberEvent(false)
+                    .installDefaultEventBus();
+        } catch (EventBusException e) {
+            Log.d(TAG, e.getMessage());
         }
+
+        DynamicColors.applyToActivitiesIfAvailable(this);
+        ClientConfigurator.initialize(this);
+        PreferenceUpgrader.checkUpgrades(this);
     }
-
-	private static final String TAG = "PodcastApp";
-
-	private static float LOGICAL_DENSITY;
-
-	private static PodcastApp singleton;
-
-	public static PodcastApp getInstance() {
-		return singleton;
-	}
-
-	@Override
-	public void onCreate() {
-		super.onCreate();
-		singleton = this;
-		LOGICAL_DENSITY = getResources().getDisplayMetrics().density;
-
-		UpdateManager.init(this);
-		UserPreferences.init(this);
-		PlaybackPreferences.init(this);
-		NetworkUtils.init(this);
-		EventDistributor.getInstance();
-
-        SPAUtil.sendSPAppsQueryFeedsIntent(this);
-	}
-
-	public static float getLogicalDensity() {
-		return LOGICAL_DENSITY;
-	}
-
-	public boolean isLargeScreen() {
-		return (getResources().getConfiguration().screenLayout & Configuration.SCREENLAYOUT_SIZE_MASK) == Configuration.SCREENLAYOUT_SIZE_LARGE
-				|| (getResources().getConfiguration().screenLayout & Configuration.SCREENLAYOUT_SIZE_MASK) == Configuration.SCREENLAYOUT_SIZE_XLARGE;
-
-	}
 }

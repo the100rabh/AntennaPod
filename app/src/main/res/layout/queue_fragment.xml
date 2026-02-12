@@ -1,76 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
-
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:dslv="http://schemas.android.com/apk/res-auto"
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <TextView
-        android:id="@+id/info_bar"
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appbar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:gravity="center"
-        android:textSize="12sp"
-        android:text="42 episodes \u2022 5 hours 17 minutes"/>
+        android:fitsSystemWindows="true"
+        android:elevation="0dp">
 
-    <View
-        android:id="@+id/divider"
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_below="@id/info_bar"
-        android:background="?android:attr/listDivider"/>
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:navigationContentDescription="@string/toolbar_back_button_content_description"
+            app:navigationIcon="?homeAsUpIndicator"
+            app:title="@string/queue_label" />
 
-    <com.mobeta.android.dslv.DragSortListView
-        android:id="@android:id/list"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:clipToPadding="false"
-        android:scrollbarStyle="outsideOverlay"
-        android:layout_below="@+id/divider"
-        dslv:collapsed_height="2dp"
-        dslv:drag_enabled="true"
-        dslv:drag_handle_id="@id/drag_handle"
-        dslv:drag_scroll_start="0.33"
-        dslv:float_alpha="0.6"
-        dslv:float_background_color="?attr/dragview_float_background"
-        dslv:max_drag_scroll_speed="0.5"
-        dslv:remove_enabled="true"
-        dslv:remove_mode="flingRemove"
-        dslv:slide_shuffle_speed="0.3"
-        dslv:sort_enabled="true"
-        dslv:track_drag_sort="true"
-        dslv:use_default_controller="true" />
+        <TextView
+            android:id="@+id/info_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/toolbar"
+            android:textSize="12sp"
+            android:layout_marginTop="-12dp"
+            android:paddingHorizontal="16dp"
+            android:layout_marginBottom="8dp"
+            tools:text="12 Episodes - Time remaining: 12 hours" />
 
-    <TextView
-        android:id="@id/android:empty"
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_centerInParent="true"
-        android:gravity="center"
-        android:text="@string/no_items_label" />
+        android:layout_below="@id/appbar">
+
+        <de.danoeh.antennapod.ui.episodeslist.EpisodeItemListRecyclerView
+            android:id="@+id/recyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:paddingHorizontal="@dimen/additional_horizontal_spacing" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     <ProgressBar
-        android:id="@+id/progLoading"
+        android:id="@+id/progressBar"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_centerInParent="true"
         android:indeterminateOnly="true"
         android:visibility="gone" />
 
-    <LinearLayout
-        android:id="@+id/undobar"
-        android:layout_alignParentBottom="true"
-        style="@style/UndoBar">
-
-        <TextView
-            android:id="@+id/undobar_message"
-            style="@style/UndoBarMessage"/>
-
-        <Button
-            android:id="@+id/undobar_button"
-            style="@style/UndoBarButton"/>
-
-    </LinearLayout>
+    <de.danoeh.antennapod.ui.view.FloatingSelectMenu
+        android:id="@+id/floatingSelectMenu"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true" />
 
 </RelativeLayout>

@@ -1,7 +1,17 @@
 package de.test.antennapod.service.playback;
 
 import android.content.Context;
-import android.test.InstrumentationTestCase;
+import androidx.test.platform.app.InstrumentationRegistry;
+import androidx.test.annotation.UiThreadTest;
+import androidx.test.filters.LargeTest;
+
+import de.danoeh.antennapod.playback.service.internal.PlaybackServiceTaskManager;
+import de.danoeh.antennapod.storage.preferences.SleepTimerPreferences;
+import de.danoeh.antennapod.storage.database.PodDBAdapter;
+import de.danoeh.antennapod.ui.widget.WidgetUpdater;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -9,51 +19,53 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import de.danoeh.antennapod.core.feed.EventDistributor;
-import de.danoeh.antennapod.core.feed.Feed;
-import de.danoeh.antennapod.core.feed.FeedItem;
-import de.danoeh.antennapod.core.feed.QueueEvent;
-import de.danoeh.antennapod.core.service.playback.PlaybackServiceTaskManager;
-import de.danoeh.antennapod.core.storage.PodDBAdapter;
-import de.danoeh.antennapod.core.util.playback.Playable;
-import de.greenrobot.event.EventBus;
+import de.danoeh.antennapod.model.feed.Feed;
+import de.danoeh.antennapod.model.feed.FeedItem;
+import de.danoeh.antennapod.model.playback.Playable;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test class for PlaybackServiceTaskManager
  */
-public class PlaybackServiceTaskManagerTest extends InstrumentationTestCase {
+@LargeTest
+public class PlaybackServiceTaskManagerTest {
 
-    @Override
-    protected void tearDown() throws Exception {
-        super.tearDown();
-        assertTrue(PodDBAdapter.deleteDatabase(getInstrumentation().getTargetContext()));
+    @After
+    public void tearDown() {
+        PodDBAdapter.deleteDatabase();
     }
 
-    @Override
-    protected void setUp() throws Exception {
-        super.setUp();
-        final Context context = getInstrumentation().getTargetContext();
-        context.deleteDatabase(PodDBAdapter.DATABASE_NAME);
-        // make sure database is created
-        PodDBAdapter adapter = new PodDBAdapter(context);
+    @Before
+    public void setUp() {
+        // create new database
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        PodDBAdapter.init(context);
+        PodDBAdapter.deleteDatabase();
+        PodDBAdapter adapter = PodDBAdapter.getInstance();
         adapter.open();
         adapter.close();
+        SleepTimerPreferences.setShakeToReset(false);
+        SleepTimerPreferences.setVibrate(false);
     }
 
+    @Test
     public void testInit() {
-        PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(getInstrumentation().getTargetContext(), defaultPSTM);
+        Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(context, defaultPSTM);
         pstm.shutdown();
     }
 
     private List<FeedItem> writeTestQueue(String pref) {
-        final Context c = getInstrumentation().getTargetContext();
         final int NUM_ITEMS = 10;
-        Feed f = new Feed(0, new Date(), "title", "link", "d", null, null, null, null, "id", null, "null", "url", false);
-        f.setItems(new ArrayList<FeedItem>());
+        Feed f = new Feed(0, null, "title", "link", "d", null, null, null, null, "id",
+                null, "null", "url", System.currentTimeMillis());
+        f.setItems(new ArrayList<>());
         for (int i = 0; i < NUM_ITEMS; i++) {
             f.getItems().add(new FeedItem(0, pref + i, pref + i, "link", new Date(), FeedItem.PLAYED, f));
         }
-        PodDBAdapter adapter = new PodDBAdapter(c);
+        PodDBAdapter adapter = PodDBAdapter.getInstance();
         adapter.open();
         adapter.setCompleteFeed(f);
         adapter.setQueue(f.getItems());
@@ -65,53 +77,9 @@ public class PlaybackServiceTaskManagerTest extends InstrumentationTestCase {
         return f.getItems();
     }
 
-    public void testGetQueueWriteBeforeCreation() throws InterruptedException {
-        final Context c = getInstrumentation().getTargetContext();
-        List<FeedItem> queue = writeTestQueue("a");
-        assertNotNull(queue);
-        PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, defaultPSTM);
-        List<FeedItem> testQueue = pstm.getQueue();
-        assertNotNull(testQueue);
-        assertTrue(queue.size() == testQueue.size());
-        for (int i = 0; i < queue.size(); i++) {
-            assertTrue(queue.get(i).getId() == testQueue.get(i).getId());
-        }
-        pstm.shutdown();
-    }
-
-    public void testGetQueueWriteAfterCreation() throws InterruptedException {
-        final Context c = getInstrumentation().getTargetContext();
-
-        PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, defaultPSTM);
-        List<FeedItem> testQueue = pstm.getQueue();
-        assertNotNull(testQueue);
-        assertTrue(testQueue.isEmpty());
-
-
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        EventDistributor.EventListener queueListener = new EventDistributor.EventListener() {
-            @Override
-            public void update(EventDistributor eventDistributor, Integer arg) {
-                countDownLatch.countDown();
-            }
-        };
-        EventDistributor.getInstance().register(queueListener);
-        List<FeedItem> queue = writeTestQueue("a");
-        EventBus.getDefault().post(new QueueEvent(QueueEvent.Action.ADDED_ITEMS, queue));
-        countDownLatch.await(5000, TimeUnit.MILLISECONDS);
-
-        assertNotNull(queue);
-        testQueue = pstm.getQueue();
-        assertNotNull(testQueue);
-        assertTrue(queue.size() == testQueue.size());
-        for (int i = 0; i < queue.size(); i++) {
-            assertTrue(queue.get(i).getId() == testQueue.get(i).getId());
-        }
-        pstm.shutdown();
-    }
-
+    @Test
     public void testStartPositionSaver() throws InterruptedException {
-        final Context c = getInstrumentation().getTargetContext();
+        final Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
         final int NUM_COUNTDOWNS = 2;
         final int TIMEOUT = 3 * PlaybackServiceTaskManager.POSITION_SAVER_WAITING_INTERVAL;
         final CountDownLatch countDownLatch = new CountDownLatch(NUM_COUNTDOWNS);
@@ -122,13 +90,8 @@ public class PlaybackServiceTaskManagerTest extends InstrumentationTestCase {
             }
 
             @Override
-            public void onSleepTimerExpired() {
-
-            }
-
-            @Override
-            public void onWidgetUpdaterTick() {
-
+            public WidgetUpdater.WidgetState requestWidgetState() {
+                return null;
             }
 
             @Override
@@ -141,16 +104,18 @@ public class PlaybackServiceTaskManagerTest extends InstrumentationTestCase {
         pstm.shutdown();
     }
 
+    @Test
     public void testIsPositionSaverActive() {
-        final Context c = getInstrumentation().getTargetContext();
+        final Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
         PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, defaultPSTM);
         pstm.startPositionSaver();
         assertTrue(pstm.isPositionSaverActive());
         pstm.shutdown();
     }
 
+    @Test
     public void testCancelPositionSaver() {
-        final Context c = getInstrumentation().getTargetContext();
+        final Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
         PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, defaultPSTM);
         pstm.startPositionSaver();
         pstm.cancelPositionSaver();
@@ -158,8 +123,9 @@ public class PlaybackServiceTaskManagerTest extends InstrumentationTestCase {
         pstm.shutdown();
     }
 
+    @Test
     public void testStartWidgetUpdater() throws InterruptedException {
-        final Context c = getInstrumentation().getTargetContext();
+        final Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
         final int NUM_COUNTDOWNS = 2;
         final int TIMEOUT = 3 * PlaybackServiceTaskManager.WIDGET_UPDATER_NOTIFICATION_INTERVAL;
         final CountDownLatch countDownLatch = new CountDownLatch(NUM_COUNTDOWNS);
@@ -170,13 +136,9 @@ public class PlaybackServiceTaskManagerTest extends InstrumentationTestCase {
             }
 
             @Override
-            public void onSleepTimerExpired() {
-
-            }
-
-            @Override
-            public void onWidgetUpdaterTick() {
+            public WidgetUpdater.WidgetState requestWidgetState() {
                 countDownLatch.countDown();
+                return null;
             }
 
             @Override
@@ -189,16 +151,27 @@ public class PlaybackServiceTaskManagerTest extends InstrumentationTestCase {
         pstm.shutdown();
     }
 
+    @Test
+    public void testStartWidgetUpdaterAfterShutdown() {
+        // Should not throw.
+        final Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
+        PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, defaultPSTM);
+        pstm.shutdown();
+        pstm.startWidgetUpdater();
+    }
+
+    @Test
     public void testIsWidgetUpdaterActive() {
-        final Context c = getInstrumentation().getTargetContext();
+        final Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
         PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, defaultPSTM);
         pstm.startWidgetUpdater();
         assertTrue(pstm.isWidgetUpdaterActive());
         pstm.shutdown();
     }
 
+    @Test
     public void testCancelWidgetUpdater() {
-        final Context c = getInstrumentation().getTargetContext();
+        final Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
         PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, defaultPSTM);
         pstm.startWidgetUpdater();
         pstm.cancelWidgetUpdater();
@@ -206,109 +179,26 @@ public class PlaybackServiceTaskManagerTest extends InstrumentationTestCase {
         pstm.shutdown();
     }
 
+    @Test
     public void testCancelAllTasksNoTasksStarted() {
-        final Context c = getInstrumentation().getTargetContext();
+        final Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
         PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, defaultPSTM);
         pstm.cancelAllTasks();
         assertFalse(pstm.isPositionSaverActive());
         assertFalse(pstm.isWidgetUpdaterActive());
-        assertFalse(pstm.isSleepTimerActive());
         pstm.shutdown();
     }
 
+    @Test
+    @UiThreadTest
     public void testCancelAllTasksAllTasksStarted() {
-        final Context c = getInstrumentation().getTargetContext();
+        final Context c = InstrumentationRegistry.getInstrumentation().getTargetContext();
         PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, defaultPSTM);
         pstm.startWidgetUpdater();
         pstm.startPositionSaver();
-        pstm.setSleepTimer(100000);
         pstm.cancelAllTasks();
         assertFalse(pstm.isPositionSaverActive());
         assertFalse(pstm.isWidgetUpdaterActive());
-        assertFalse(pstm.isSleepTimerActive());
-        pstm.shutdown();
-    }
-
-    public void testSetSleepTimer() throws InterruptedException {
-        final Context c = getInstrumentation().getTargetContext();
-        final long TIME = 2000;
-        final long TIMEOUT = 2 * TIME;
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, new PlaybackServiceTaskManager.PSTMCallback() {
-            @Override
-            public void positionSaverTick() {
-
-            }
-
-            @Override
-            public void onSleepTimerExpired() {
-                if (countDownLatch.getCount() == 0) {
-                    fail();
-                }
-                countDownLatch.countDown();
-            }
-
-            @Override
-            public void onWidgetUpdaterTick() {
-
-            }
-
-            @Override
-            public void onChapterLoaded(Playable media) {
-
-            }
-        });
-        pstm.setSleepTimer(TIME);
-        countDownLatch.await(TIMEOUT, TimeUnit.MILLISECONDS);
-        pstm.shutdown();
-    }
-
-    public void testDisableSleepTimer() throws InterruptedException {
-        final Context c = getInstrumentation().getTargetContext();
-        final long TIME = 1000;
-        final long TIMEOUT = 2 * TIME;
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
-        PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, new PlaybackServiceTaskManager.PSTMCallback() {
-            @Override
-            public void positionSaverTick() {
-
-            }
-
-            @Override
-            public void onSleepTimerExpired() {
-                fail("Sleeptimer expired");
-            }
-
-            @Override
-            public void onWidgetUpdaterTick() {
-
-            }
-
-            @Override
-            public void onChapterLoaded(Playable media) {
-
-            }
-        });
-        pstm.setSleepTimer(TIME);
-        pstm.disableSleepTimer();
-        assertFalse(countDownLatch.await(TIMEOUT, TimeUnit.MILLISECONDS));
-        pstm.shutdown();
-    }
-
-    public void testIsSleepTimerActivePositive() {
-        final Context c = getInstrumentation().getTargetContext();
-        PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, defaultPSTM);
-        pstm.setSleepTimer(10000);
-        assertTrue(pstm.isSleepTimerActive());
-        pstm.shutdown();
-    }
-
-    public void testIsSleepTimerActiveNegative() {
-        final Context c = getInstrumentation().getTargetContext();
-        PlaybackServiceTaskManager pstm = new PlaybackServiceTaskManager(c, defaultPSTM);
-        pstm.setSleepTimer(10000);
-        pstm.disableSleepTimer();
-        assertFalse(pstm.isSleepTimerActive());
         pstm.shutdown();
     }
 
@@ -319,13 +209,8 @@ public class PlaybackServiceTaskManagerTest extends InstrumentationTestCase {
         }
 
         @Override
-        public void onSleepTimerExpired() {
-
-        }
-
-        @Override
-        public void onWidgetUpdaterTick() {
-
+        public WidgetUpdater.WidgetState requestWidgetState() {
+            return null;
         }
 
         @Override

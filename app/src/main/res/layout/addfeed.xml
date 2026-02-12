@@ -1,110 +1,154 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:scrollbars="vertical">
+    android:orientation="vertical">
 
-    <LinearLayout
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appbar"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:paddingTop="8dp"
-        android:paddingLeft="16dp"
-        android:paddingRight="16dp"
-        android:paddingBottom="8dp"
-        android:orientation="vertical">
+        android:layout_height="wrap_content"
+        android:fitsSystemWindows="true">
 
-        <TextView
-            android:id="@+id/txtvPodcastDirectories"
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            style="@style/AntennaPod.TextView.Heading"
-            android:text="@string/podcastdirectories_label"/>
+            android:minHeight="?attr/actionBarSize"
+            app:title="@string/add_feed_label"
+            app:navigationContentDescription="@string/toolbar_back_button_content_description"
+            app:navigationIcon="?homeAsUpIndicator" />
 
-        <TextView
-            android:id="@+id/txtvPodcastDirectoriesDescr"
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:id="@+id/scrollView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scrollbars="vertical">
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/podcastdirectories_descr"
-            android:textSize="@dimen/text_size_medium"
-            android:layout_marginTop="4dp"/>
+            android:orientation="vertical"
+            android:paddingBottom="16dp">
 
-        <Button
-            android:id="@+id/butSearchItunes"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/search_itunes_label"/>
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:layout_marginHorizontal="16dp"
+                app:cardCornerRadius="28dp"
+                app:cardElevation="0dp">
 
-        <Button
-            android:id="@+id/butBrowseGpoddernet"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/browse_gpoddernet_label"/>
+                <LinearLayout
+                    android:id="@+id/searchbar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="?attr/colorSurfaceContainer">
 
-        <View
-            android:id="@+id/divider1"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_margin="16dp"
-            android:background="?android:attr/listDivider"/>
+                    <ImageView
+                        android:id="@+id/searchButton"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:padding="12dp"
+                        android:layout_marginLeft="8dp"
+                        android:layout_marginRight="8dp"
+                        android:contentDescription="@string/search_podcast_hint"
+                        android:scaleType="center"
+                        app:srcCompat="@drawable/ic_search" />
 
-        <TextView
-            android:id="@+id/txtvFeedurl"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/divider1"
-            style="@style/AntennaPod.TextView.Heading"
-            android:text="@string/txtvfeedurl_label"/>
+                    <EditText
+                        android:id="@+id/combinedFeedSearchEditText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:inputType="text"
+                        android:imeOptions="actionSearch"
+                        android:importantForAutofill="no"
+                        android:layout_marginStart="0dp"
+                        android:layout_marginLeft="0dp"
+                        android:layout_marginRight="8dp"
+                        android:layout_marginEnd="8dp"
+                        android:paddingTop="16dp"
+                        android:paddingBottom="16dp"
+                        android:hint="@string/search_podcast_hint"
+                        android:background="@null" />
 
-        <EditText
-            android:id="@+id/etxtFeedurl"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:hint="@string/etxtFeedurlHint"
-            android:inputType="textUri"
-            android:focusable="true"
-            android:focusableInTouchMode="true"
-            android:cursorVisible="true"/>
+                </LinearLayout>
 
-        <Button
-            android:id="@+id/butConfirm"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/confirm_label"/>
+            </androidx.cardview.widget.CardView>
 
-        <View
-            android:id="@+id/divider2"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_margin="16dp"
-            android:background="?android:attr/listDivider"/>
+            <androidx.fragment.app.FragmentContainerView
+                android:id="@+id/quickFeedDiscovery"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginVertical="16dp"
+                android:layout_marginHorizontal="16dp"
+                android:name="de.danoeh.antennapod.ui.discovery.QuickFeedDiscoveryFragment" />
 
-        <TextView
-            android:id="@+id/txtvOpmlImport"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            style="@style/AntennaPod.TextView.Heading"
-            android:text="@string/opml_import_label"/>
+            <TextView
+                android:id="@+id/addViaUrlButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/add_podcast_by_url"
+                app:drawableStartCompat="@drawable/ic_feed"
+                app:drawableLeftCompat="@drawable/ic_feed"
+                style="@style/AddPodcastTextView" />
 
-        <TextView
-            android:id="@+id/txtvOpmlImportExpl"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textSize="@dimen/text_size_medium"
-            android:text="@string/opml_import_txtv_button_lable"/>
+            <TextView
+                android:id="@+id/addLocalFolderButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/add_local_folder"
+                app:drawableStartCompat="@drawable/ic_folder"
+                app:drawableLeftCompat="@drawable/ic_folder"
+                style="@style/AddPodcastTextView" />
 
-        <Button
-            android:id="@+id/butOpmlImport"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/opml_import_label"/>
+            <TextView
+                android:id="@+id/searchItunesButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/search_itunes_label"
+                app:drawableStartCompat="@drawable/ic_search"
+                app:drawableLeftCompat="@drawable/ic_search"
+                style="@style/AddPodcastTextView" />
 
-    </LinearLayout>
+            <TextView
+                android:id="@+id/searchFyydButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/search_fyyd_label"
+                app:drawableStartCompat="@drawable/ic_search"
+                app:drawableLeftCompat="@drawable/ic_search"
+                style="@style/AddPodcastTextView" />
 
-</ScrollView>
+            <TextView
+                android:id="@+id/searchPodcastIndexButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/search_podcastindex_label"
+                app:drawableStartCompat="@drawable/ic_search"
+                app:drawableLeftCompat="@drawable/ic_search"
+                style="@style/AddPodcastTextView" />
+
+            <TextView
+                android:id="@+id/opmlImportButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/opml_add_podcast_label"
+                app:drawableStartCompat="@drawable/ic_download"
+                app:drawableLeftCompat="@drawable/ic_download"
+                style="@style/AddPodcastTextView" />
+
+        </LinearLayout>
+
+    </androidx.core.widget.NestedScrollView>
+
+</LinearLayout>

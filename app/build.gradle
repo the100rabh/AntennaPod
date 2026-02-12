@@ -1,135 +1,146 @@
-import org.apache.tools.ant.filters.ReplaceTokens
-
-apply plugin: 'com.android.application'
-apply plugin: 'me.tatarka.retrolambda'
-
-repositories {
-    mavenCentral()
+plugins {
+    id('com.android.application')
+    id('com.github.triplet.play') version '3.9.0' apply false
 }
-
-dependencies {
-    compile 'com.android.support:support-v4:21.0.3'
-    compile 'com.android.support:appcompat-v7:21.0.3'
-    compile 'com.android.support:gridlayout-v7:21.0.3'
-    compile 'org.apache.commons:commons-lang3:3.3.2'
-    compile('org.shredzone.flattr4j:flattr4j-core:2.12') {
-        exclude group: 'org.json', module: 'json'
-    }
-    compile 'commons-io:commons-io:2.4'
-    compile 'org.jsoup:jsoup:1.7.3'
-    compile 'com.github.bumptech.glide:glide:3.6.1'
-    compile 'com.squareup.okhttp:okhttp:2.4.0'
-    compile 'com.squareup.okhttp:okhttp-urlconnection:2.4.0'
-    compile 'com.squareup.okio:okio:1.2.0'
-    compile 'de.greenrobot:eventbus:2.4.0'
-    compile 'com.joanzapata.android:android-iconify:1.0.9'
-    compile 'io.reactivex:rxandroid:1.0.1'
-    
-    compile project(':core')
-    compile project(':library:drag-sort-listview')
-}
-
-def getMyVersionName() {
-    def parsedManifestXml = (new XmlSlurper())
-            .parse("${projectDir}/src/main/AndroidManifest.xml")
-            .declareNamespace(android:"http://schemas.android.com/apk/res/android")
-    return parsedManifestXml.'@android:versionName'
-}
-
-def getMyVersionCode() {
-    def parsedManifestXml = (new XmlSlurper())
-            .parse("${projectDir}/src/main/AndroidManifest.xml")
-            .declareNamespace(android:"http://schemas.android.com/apk/res/android")
-    return parsedManifestXml.'@android:versionCode'.toInteger()
-}
+apply from: "../common.gradle"
+apply from: "../playFlavor.gradle"
 
 android {
-    compileSdkVersion 21
-    buildToolsVersion "21.1.2"
+    namespace "de.danoeh.antennapod"
 
     defaultConfig {
-        minSdkVersion 10
-        targetSdkVersion 21
-        versionCode getMyVersionCode()
-        versionName "${getMyVersionName()}"
-        testApplicationId "de.test.antennapod"
-        testInstrumentationRunner "de.test.antennapod.AntennaPodTestRunner"
+        // Version code schema:
+        // "1.2.3-beta4"    -> 1020304
+        // "1.2.3"          -> 1020395
+        versionCode 3110095
+        versionName "3.11.0"
+
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments = [eventBusIndex: 'de.danoeh.antennapod.ApEventBusIndex']
+            }
+        }
     }
 
     signingConfigs {
         releaseConfig {
-            if (project.hasProperty('releaseStoreFile')) {
-                storeFile file(releaseStoreFile)
-            } else {
-                storeFile file('keystore')
-            }
-            if (project.hasProperty('releaseStorePassword')) {
-                storePassword releaseStorePassword
-            } else {
-                storePassword "password"
-            }
-            if (project.hasProperty('releaseKeyAlias')) {
-                keyAlias releaseKeyAlias
-            } else {
-                keyAlias "alias"
-            }
-            if (project.hasProperty('releaseKeyPassword')) {
-                keyPassword releaseKeyPassword
-            } else {
-                keyPassword "password"
-            }
+            enableV1Signing true
+            enableV2Signing true
+            storeFile file(project.getProperties().getOrDefault("releaseStoreFile", "keystore"))
+            storePassword project.getProperties().getOrDefault("releaseStorePassword", "password")
+            keyAlias project.getProperties().getOrDefault("releaseKeyAlias", "alias")
+            keyPassword project.getProperties().getOrDefault("releaseKeyPassword", "password")
         }
     }
 
     buildTypes {
-        def STRING = "String"
-        def FLATTR_APP_KEY = "FLATTR_APP_KEY"
-        def FLATTR_APP_SECRET = "FLATTR_APP_SECRET"
-        def mFlattrAppKey = (project.hasProperty('flattrAppKey')) ? flattrAppKey : "\"\""
-        def mFlattrAppSecret = (project.hasProperty('flattrAppSecret')) ? flattrAppSecret : "\"\""
-
         debug {
             applicationIdSuffix ".debug"
-            buildConfigField STRING, FLATTR_APP_KEY, mFlattrAppKey
-            buildConfigField STRING, FLATTR_APP_SECRET, mFlattrAppSecret
+            resValue "string", "provider_authority", "de.danoeh.antennapod.debug.provider"
         }
         release {
+            resValue "string", "provider_authority", "de.danoeh.antennapod.provider"
             minifyEnabled true
-            proguardFile 'proguard.cfg'
+            shrinkResources true
             signingConfig signingConfigs.releaseConfig
-            buildConfigField STRING, FLATTR_APP_KEY, mFlattrAppKey
-            buildConfigField STRING, FLATTR_APP_SECRET, mFlattrAppSecret
         }
     }
 
-    packagingOptions {
-        exclude 'META-INF/LICENSE.txt'
-        exclude 'META-INF/NOTICE.txt'
+    lint {
+        disable 'CheckResult', 'MissingMediaBrowserServiceIntentFilter', 'UnusedAttribute', 'InflateParams',
+                'RestrictedApi', 'ExportedReceiver', 'NotifyDataSetChanged', 'UseCompoundDrawables', 'NestedWeights',
+                'Overdraw', 'UselessParent', 'TextFields', 'AlwaysShowAction', 'Autofill', 'ClickableViewAccessibility',
+                'KeyboardInaccessibleWidget', 'LabelFor', 'SetTextI18n', 'HardcodedText', 'RelativeOverlap',
+                'RtlHardcoded', 'RtlEnabled', 'ContentDescription'
     }
 
-    lintOptions {
-        abortOnError false
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+    androidResources {
+        additionalParameters += ["--no-version-vectors"]
     }
 }
 
-// about.html is templatized so that we can automatically insert
-// our version string in to it at build time.
-task filterAbout {
-    inputs.files files(['src/main/templates/about.html',
-                        'src/main/AndroidManifest.xml'])
-    outputs.file 'src/main/assets/about.html'
-} << {
-    copy {
-        from 'src/main/templates/about.html'
-        into 'src/main/assets'
-        filter(ReplaceTokens, tokens: [versionname: android.defaultConfig.versionName,
-                                       commit: "git rev-parse --short HEAD".execute().text])
-    }
+dependencies {
+    implementation project(":event")
+    implementation project(':model')
+    implementation project(':net:common')
+    implementation project(':net:discovery')
+    implementation project(':net:download:service-interface')
+    implementation project(':net:download:service')
+    implementation project(':net:ssl')
+    implementation project(':net:sync:service')
+    implementation project(':parser:feed')
+    implementation project(':parser:transcript')
+    implementation project(':playback:base')
+    implementation project(':playback:cast')
+    implementation project(':storage:database')
+    implementation project(':storage:database-maintenance-service')
+    implementation project(':storage:importexport')
+    implementation project(':storage:preferences')
+    implementation project(':system')
+    implementation project(':ui:app-start-intent')
+    implementation project(':ui:common')
+    implementation project(':ui:discovery')
+    implementation project(':ui:echo')
+    implementation project(':ui:episodes')
+    implementation project(':ui:glide')
+    implementation project(':ui:i18n')
+    implementation project(':ui:notifications')
+    implementation project(':ui:widget')
+    implementation project(':ui:preferences')
+    implementation project(':ui:statistics')
+    implementation project(':net:sync:service-interface')
+    implementation project(':playback:service')
+    implementation project(':ui:chapters')
+    implementation project(':ui:transcript')
+
+    annotationProcessor "androidx.annotation:annotation:$annotationVersion"
+    implementation "androidx.appcompat:appcompat:$appcompatVersion"
+    implementation 'androidx.coordinatorlayout:coordinatorlayout:1.1.0'
+    implementation "androidx.core:core:$coreVersion"
+    implementation "androidx.fragment:fragment:$fragmentVersion"
+    implementation 'androidx.gridlayout:gridlayout:1.0.0'
+    implementation "androidx.media:media:$mediaVersion"
+    implementation "androidx.palette:palette:$paletteVersion"
+    implementation "androidx.preference:preference:$preferenceVersion"
+    implementation "androidx.recyclerview:recyclerview:$recyclerViewVersion"
+    implementation "androidx.viewpager2:viewpager2:$viewPager2Version"
+    implementation "androidx.work:work-runtime:$workManagerVersion"
+    implementation "com.google.android.material:material:$googleMaterialVersion"
+    implementation "androidx.drawerlayout:drawerlayout:1.2.0"
+
+    implementation "org.apache.commons:commons-lang3:$commonslangVersion"
+    implementation "commons-io:commons-io:$commonsioVersion"
+    implementation "org.jsoup:jsoup:$jsoupVersion"
+    implementation "com.github.bumptech.glide:glide:$glideVersion"
+    implementation "com.squareup.okhttp3:okhttp:$okhttpVersion"
+    implementation "com.squareup.okhttp3:okhttp-urlconnection:$okhttpVersion"
+    implementation "org.greenrobot:eventbus:$eventbusVersion"
+    annotationProcessor "org.greenrobot:eventbus-annotation-processor:$eventbusVersion"
+    implementation "io.reactivex.rxjava3:rxandroid:$rxAndroidVersion"
+    implementation "io.reactivex.rxjava3:rxjava:$rxJavaVersion"
+
+    implementation 'com.github.ByteHamster:SearchPreference:v2.5.0'
+    implementation 'com.github.skydoves:balloon:1.5.3'
+    implementation 'com.github.xabaras:RecyclerViewSwipeDecorator:1.3'
+
+    testImplementation "androidx.test:core:$testCoreVersion"
+    testImplementation "junit:junit:$junitVersion"
+    testImplementation "org.robolectric:robolectric:$robolectricVersion"
+
+    androidTestImplementation "org.awaitility:awaitility:$awaitilityVersion"
+    androidTestImplementation 'com.nanohttpd:nanohttpd:2.1.1'
+    androidTestImplementation "androidx.test.espresso:espresso-core:$espressoVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-contrib:$espressoVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-intents:$espressoVersion"
+    androidTestImplementation "androidx.test:runner:$runnerVersion"
+    androidTestImplementation "androidx.test:rules:$rulesVersion"
+    androidTestImplementation 'androidx.test.ext:junit:1.1.1'
 }
 
-preBuild.dependsOn filterAbout
+if (project.hasProperty("antennaPodPlayPublisherCredentials")) {
+    apply plugin: 'com.github.triplet.play'
+    play {
+        track.set('alpha')
+        serviceAccountCredentials.set(file(antennaPodPlayPublisherCredentials))
+    }
+}
