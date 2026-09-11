@@ -72,12 +72,16 @@ public class RemoveFeedDialog extends BottomSheetDialogFragment {
         }
         if (allArchived) {
             binding.archiveButton.setVisibility(View.GONE);
+            binding.restoreButton.setVisibility(View.VISIBLE);
             binding.explanationArchiveText.setVisibility(View.GONE);
         }
         binding.cancelButton.setOnClickListener(v -> dismiss());
         binding.removeButton.setOnClickListener(v -> showRemoveConfirm());
         binding.removeConfirmButton.setOnClickListener(v -> onRemoveButtonPressed());
-        binding.archiveButton.setOnClickListener(v -> onArchiveButtonPressed());
+        binding.archiveButton.setOnClickListener(v ->
+                onArchiveButtonPressed(R.string.archiving_podcast_progress, Feed.STATE_ARCHIVED));
+        binding.restoreButton.setOnClickListener(v ->
+                onArchiveButtonPressed(R.string.restoring_podcast_progress, Feed.STATE_SUBSCRIBED));
         return binding.getRoot();
     }
 
@@ -131,7 +135,7 @@ public class RemoveFeedDialog extends BottomSheetDialogFragment {
                         DBWriter.deleteFeed(context, feed.getId()).get();
                     }
                 })
-                .subscribeOn(Schedulers.io())
+                .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
                         () -> {
@@ -143,7 +147,7 @@ public class RemoveFeedDialog extends BottomSheetDialogFragment {
                         });
     }
 
-    private void onArchiveButtonPressed() {
+    private void onArchiveButtonPressed(int progressTextResId, int newState) {
         Context context = getContext();
         if (context == null) {
             return;
@@ -158,11 +162,11 @@ public class RemoveFeedDialog extends BottomSheetDialogFragment {
                 () -> {
                     for (int i = 0; i < feeds.size(); i++) {
                         Feed feed = feeds.get(i);
-                        updateProgressText(R.string.archiving_podcast_progress, i + 1, feeds.size());
-                        DBWriter.setFeedState(context, feed, Feed.STATE_ARCHIVED).get();
+                        updateProgressText(progressTextResId, i + 1, feeds.size());
+                        DBWriter.setFeedState(context, feed, newState).get();
                     }
                 })
-                .subscribeOn(Schedulers.io())
+                .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
                         () -> {
@@ -192,8 +196,10 @@ public class RemoveFeedDialog extends BottomSheetDialogFragment {
         LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) binding.removeConfirmButton.getLayoutParams();
         ValueAnimator animator = ValueAnimator.ofFloat(1.0f, 2.0f);
         animator.addUpdateListener(animation -> {
-            params.weight = (float) animation.getAnimatedValue();
-            binding.removeConfirmButton.setLayoutParams(params);
+            if (binding != null) {
+                params.weight = (float) animation.getAnimatedValue();
+                binding.removeConfirmButton.setLayoutParams(params);
+            }
         });
         animator.setDuration(400);
         animator.setInterpolator(new OvershootInterpolator(3.0f));

@@ -93,6 +93,9 @@ public class HomeFragment extends Fragment implements Toolbar.OnMenuItemClickLis
     }
 
     private void addSection(Fragment section) {
+        if (section == null) { // Can happen when stored settings reference a section that no longer exists
+            return;
+        }
         FragmentContainerView containerView = new FragmentContainerView(getContext());
         containerView.setId(View.generateViewId());
         viewBinding.homeContainer.addView(containerView);
@@ -164,7 +167,7 @@ public class HomeFragment extends Fragment implements Toolbar.OnMenuItemClickLis
             disposable.dispose();
         }
         disposable = Observable.fromCallable(() -> DBReader.getTotalEpisodeCount(FeedItemFilter.unfiltered()))
-                .subscribeOn(Schedulers.io())
+                .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(numEpisodes -> {
                     boolean hasEpisodes = numEpisodes != 0;

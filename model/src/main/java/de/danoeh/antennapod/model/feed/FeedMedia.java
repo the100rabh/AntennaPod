@@ -1,6 +1,5 @@
 package de.danoeh.antennapod.model.feed;
 
-import android.content.Context;
 import android.net.Uri;
 import android.os.Parcel;
 import android.os.Parcelable;
@@ -415,20 +414,6 @@ public class FeedMedia implements Playable {
     }
 
     @Override
-    public void onPlaybackPause(Context context) {
-        if (position > startPosition) {
-            playedDuration = playedDurationWhenStarted + position - startPosition;
-            playedDurationWhenStarted = playedDuration;
-        }
-        startPosition = position;
-    }
-
-    @Override
-    public void onPlaybackCompleted(Context context) {
-        startPosition = -1;
-    }
-
-    @Override
     public int getPlayableType() {
         return PLAYABLE_TYPE_FEEDMEDIA;
     }
@@ -506,6 +491,11 @@ public class FeedMedia implements Playable {
             e.printStackTrace();
             hasEmbeddedPicture = Boolean.FALSE;
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return Long.hashCode(id);
     }
 
     @Override

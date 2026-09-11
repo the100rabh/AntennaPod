@@ -4,7 +4,6 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.text.Spannable;
 import android.text.SpannableString;
@@ -104,7 +103,7 @@ public class OpmlImportActivity extends ToolbarActivity {
                 }
                 FeedUpdateManager.getInstance().runOnce(this);
             })
-                    .subscribeOn(Schedulers.io())
+                    .subscribeOn(Schedulers.computation())
                     .observeOn(AndroidSchedulers.mainThread())
                     .subscribe(
                             () -> {
@@ -224,7 +223,7 @@ public class OpmlImportActivity extends ToolbarActivity {
             reader.close();
             return result;
         })
-                .subscribeOn(Schedulers.io())
+                .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
                         result -> {
@@ -238,8 +237,7 @@ public class OpmlImportActivity extends ToolbarActivity {
                         }, e -> {
                             Log.d(TAG, Log.getStackTraceString(e));
                             String message = e.getMessage() == null ? "" : e.getMessage();
-                            if (message.toLowerCase(Locale.ROOT).contains("permission")
-                                    && Build.VERSION.SDK_INT >= 23) {
+                            if (message.toLowerCase(Locale.ROOT).contains("permission")) {
                                 int permission = ActivityCompat.checkSelfPermission(this,
                                         android.Manifest.permission.READ_EXTERNAL_STORAGE);
                                 if (permission != PackageManager.PERMISSION_GRANTED) {

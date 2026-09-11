@@ -3,9 +3,16 @@ plugins {
 }
 apply from: "../../common.gradle"
 apply from: "../../playFlavor.gradle"
+apply from: "../../mockitoAgent.gradle"
 
 android {
     namespace "de.danoeh.antennapod.playback.service"
+
+    tasks.withType(JavaCompile) {
+        // There is no way to suppress this specific warning, so we have to opt out of all:
+        // class file for com.google.j2objc.annotations.ReflectionSupport$Level not found
+        options.compilerArgs.removeAll { it == "-Werror" }
+    }
 }
 
 dependencies {
@@ -31,6 +38,7 @@ dependencies {
     implementation "androidx.appcompat:appcompat:$appcompatVersion"
     implementation "androidx.media:media:$mediaVersion"
     implementation "androidx.media3:media3-exoplayer:$media3Version"
+    implementation "androidx.media3:media3-session:$media3Version"
     implementation "androidx.media3:media3-ui:$media3Version"
 
     implementation "io.reactivex.rxjava3:rxandroid:$rxAndroidVersion"
@@ -41,4 +49,6 @@ dependencies {
 
     testImplementation "junit:junit:$junitVersion"
     testImplementation "org.mockito:mockito-core:$mockitoVersion"
+    testImplementation "androidx.test:core:$testCoreVersion"
+    testImplementation "org.robolectric:robolectric:$robolectricVersion"
 }

@@ -28,7 +28,6 @@ import de.danoeh.antennapod.R;
 import de.danoeh.antennapod.activity.MainActivity;
 import de.danoeh.antennapod.databinding.FeedItemListFragmentBinding;
 import de.danoeh.antennapod.event.EpisodeDownloadEvent;
-import de.danoeh.antennapod.event.FavoritesEvent;
 import de.danoeh.antennapod.event.FeedEvent;
 import de.danoeh.antennapod.event.FeedItemEvent;
 import de.danoeh.antennapod.event.FeedListUpdateEvent;
@@ -36,7 +35,6 @@ import de.danoeh.antennapod.event.FeedUpdateRunningEvent;
 import de.danoeh.antennapod.event.MessageEvent;
 import de.danoeh.antennapod.event.PlayerStatusEvent;
 import de.danoeh.antennapod.event.QueueEvent;
-import de.danoeh.antennapod.event.UnreadItemsUpdateEvent;
 import de.danoeh.antennapod.event.playback.PlaybackPositionEvent;
 import de.danoeh.antennapod.model.download.DownloadResult;
 import de.danoeh.antennapod.model.feed.Feed;
@@ -208,7 +206,7 @@ public class FeedItemlistFragment extends Fragment implements AdapterView.OnItem
             EpisodeMultiSelectActionHandler handler
                     = new EpisodeMultiSelectActionHandler(getActivity(), menuItem.getItemId());
             Completable.fromAction(() -> handleActionForAllSelectedItems(handler))
-                    .subscribeOn(Schedulers.io())
+                    .subscribeOn(Schedulers.computation())
                     .observeOn(AndroidSchedulers.mainThread())
                     .subscribe(() -> adapter.endSelectMode(),
                             error -> Log.e(TAG, Log.getStackTraceString(error)));
@@ -281,19 +279,14 @@ public class FeedItemlistFragment extends Fragment implements AdapterView.OnItem
         if (StringUtils.isBlank(feed.getLink())) {
             viewBinding.toolbar.getMenu().findItem(R.id.visit_website_item).setVisible(false);
         }
-        if (feed.isLocalFeed()) {
-            viewBinding.toolbar.getMenu().findItem(R.id.share_feed).setVisible(false);
-        }
         if (feed.getState() == Feed.STATE_NOT_SUBSCRIBED) {
             viewBinding.toolbar.getMenu().findItem(R.id.sort_items).setVisible(false);
             viewBinding.toolbar.getMenu().findItem(R.id.refresh_item).setVisible(false);
-            viewBinding.toolbar.getMenu().findItem(R.id.rename_item).setVisible(false);
-            viewBinding.toolbar.getMenu().findItem(R.id.remove_archive_feed).setVisible(false);
-            viewBinding.toolbar.getMenu().findItem(R.id.remove_all_inbox_item).setVisible(false);
             viewBinding.toolbar.getMenu().findItem(R.id.action_search).setVisible(false);
         } else if (feed.getState() == Feed.STATE_ARCHIVED) {
             viewBinding.toolbar.getMenu().findItem(R.id.sort_items).setVisible(false);
         }
+        FeedMenuHandler.onPrepareMenu(viewBinding.toolbar.getMenu(), Collections.singletonList(feed));
     }
 
     @Override
@@ -332,7 +325,7 @@ public class FeedItemlistFragment extends Fragment implements AdapterView.OnItem
         } else if (item.getItemId() == R.id.sort_items) {
             SingleFeedSortDialog.newInstance(feed).show(getChildFragmentManager(), "SortDialog");
             return true;
-        } else if (item.getItemId() == R.id.remove_archive_feed) {
+        } else if (item.getItemId() == R.id.remove_archive_feed || item.getItemId() == R.id.remove_restore_feed) {
             new RemoveFeedDialogClose(Collections.singletonList(feed)).show(getParentFragmentManager(), null);
             return true;
         } else if (item.getItemId() == R.id.action_search) {
@@ -340,9 +333,7 @@ public class FeedItemlistFragment extends Fragment implements AdapterView.OnItem
             return true;
         }
 
-        Runnable showRemovedAllSnackbar = () -> EventBus.getDefault().post(
-                new MessageEvent(getString(R.string.removed_all_inbox_msg)));
-        return FeedMenuHandler.onMenuItemClicked(this, item.getItemId(), feed, showRemovedAllSnackbar);
+        return FeedMenuHandler.onMenuItemClicked(this, item.getItemId(), feed);
     }
 
     public static class RemoveFeedDialogClose extends RemoveFeedDialog {
@@ -408,6 +399,10 @@ public class FeedItemlistFragment extends Fragment implements AdapterView.OnItem
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onEventMainThread(FeedItemEvent event) {
         Log.d(TAG, "onEventMainThread() called with: " + "event = [" + event + "]");
+        if (event.unreadStatusChanged && event.items.isEmpty()) {
+            updateUi();
+            return;
+        }
         if (feed == null || feed.getItems() == null) {
             return;
         }
@@ -418,6 +413,10 @@ public class FeedItemlistFragment extends Fragment implements AdapterView.OnItem
                 feed.getItems().remove(pos);
                 feed.getItems().add(pos, item);
                 adapter.notifyItemChangedCompat(pos);
+            } else if (item.getFeedId() == feedID) {
+                // Filtered-out item of this feed was touched, reload all
+                updateUi();
+                return;
             }
         }
     }
@@ -448,11 +447,6 @@ public class FeedItemlistFragment extends Fragment implements AdapterView.OnItem
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
-    public void favoritesChanged(FavoritesEvent event) {
-        updateUi();
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
     public void onQueueChanged(QueueEvent event) {
         updateUi();
     }
@@ -478,11 +472,6 @@ public class FeedItemlistFragment extends Fragment implements AdapterView.OnItem
 
     @Subscribe(threadMode = ThreadMode.MAIN)
     public void onPlayerStatusChanged(PlayerStatusEvent event) {
-        updateUi();
-    }
-
-    @Subscribe(threadMode = ThreadMode.MAIN)
-    public void onUnreadItemsChanged(UnreadItemsUpdateEvent event) {
         updateUi();
     }
 
@@ -621,7 +610,7 @@ public class FeedItemlistFragment extends Fragment implements AdapterView.OnItem
                     }
                     return feedDownloadLog.get(0);
                 })
-                .subscribeOn(Schedulers.io())
+                .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
                     downloadStatus -> DownloadLogDetailsDialog.newInstance(downloadStatus, false)
@@ -676,7 +665,7 @@ public class FeedItemlistFragment extends Fragment implements AdapterView.OnItem
                     int count = DBReader.getFeedEpisodeCount(feed.getId(), feed.getItemFilter());
                     return new Pair<>(feed, count);
                 })
-                .subscribeOn(Schedulers.io())
+                .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
                     result -> {
@@ -708,7 +697,7 @@ public class FeedItemlistFragment extends Fragment implements AdapterView.OnItem
         adapter.setDummyViews(1);
         adapter.notifyItemInserted(adapter.getItemCount() - 1);
         disposable = Observable.fromCallable(() -> loadMoreData(page))
-                .subscribeOn(Schedulers.io())
+                .subscribeOn(Schedulers.computation())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
                         items -> {
